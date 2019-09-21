@@ -1,52 +1,46 @@
 package com.soliduslabs.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.soliduslabs.TestConfiguration;
+import com.soliduslabs.dao.DynamoDbClient;
+import com.soliduslabs.exceptions.ResourceNotFoundException;
 import com.soliduslabs.model.HashMessage;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 
 @RunWith(MockitoJUnitRunner.class)
-//@ContextConfiguration(classes = {TestConfiguration.class})
 public class HashControllerTest {
 
-    @InjectMocks
-    private HashController hashController;
+    @Mock
+    private DynamoDbClient dynamoDbClient;
 
     private MockMvc mockMvc;
+    private final String HASH_KEY = "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9";
 
     @Before
     public void setup() {
-        mockMvc = MockMvcBuilders.standaloneSetup(this.hashController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new HashController(dynamoDbClient))
+                .build();
     }
 
     @Test
     public void testGetHashByString() throws Exception {
         String url = "/messages";
-        String expectedResult = "136ffddfbcd209d8ab01a794e2fa1f6b88f223d409d97c799c7a7c46494a2d6a";
-
-        MvcResult actualResult = mockMvc.perform(MockMvcRequestBuilders
-                .post(url)
-                .content(stringAsJson(new HashMessage("testGetHashByString")))
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        assertEquals("Response does not match", actualResult.getResponse().getContentAsString(), expectedResult);
+        MvcResult actualResult = getPostResult(url);
+        assertEquals("Response does not match", actualResult.getResponse().getContentAsString(), HASH_KEY);
     }
 
     @Test
@@ -64,6 +58,47 @@ public class HashControllerTest {
 
         assertEquals("Response does not match", actualResult.getResponse().getContentAsString(), expectedResult);
         assertEquals("Response status code does not match", actualResult.getResponse().getStatus(), 400);
+    }
+
+    @Test
+    public void testGetMessageByHash() throws Exception {
+        HashMessage hashMessage = new HashMessage(HASH_KEY, "bar");
+        when(dynamoDbClient.getStringByHashKey(HASH_KEY)).thenReturn(hashMessage);
+
+        String getUrl = "/messages/" + HASH_KEY;
+        MvcResult actualResult = mockMvc.perform(MockMvcRequestBuilders
+                .get(getUrl)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertEquals("Response does not match", actualResult.getResponse().getContentAsString(), "bar");
+    }
+
+    @Test
+    public void testFailedToGetMessageByHash() throws Exception {
+        when(dynamoDbClient.getStringByHashKey(HASH_KEY)).thenReturn(null);
+
+        String getUrl = "/messages/" + HASH_KEY;
+        try {
+            mockMvc.perform(MockMvcRequestBuilders
+                    .get(getUrl)
+                    .accept(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isNotFound())
+                    .andReturn();
+        } catch (Exception e) {
+            assertTrue(e instanceof ResourceNotFoundException);
+        }
+    }
+
+    private MvcResult getPostResult(String url) throws Exception {
+        return mockMvc.perform(MockMvcRequestBuilders
+                .post(url)
+                .content(stringAsJson(new HashMessage("bar")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
     }
 
     public static String stringAsJson(final Object obj) {

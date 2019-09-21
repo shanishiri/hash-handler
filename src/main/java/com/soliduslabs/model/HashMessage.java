@@ -9,23 +9,21 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-
 @AllArgsConstructor
 @NoArgsConstructor
 @DynamoDBTable(tableName = "hash-handler")
 public class HashMessage {
-    @Getter
-    @Setter
-    @DynamoDBAttribute
-    private String message;
 
     @Getter
     @Setter
     @DynamoDBHashKey
     private String hashKey;
+
+    @Getter
+    @Setter
+    @DynamoDBAttribute
+    private String message;
+
 
     public HashMessage(String message) {
         this.message = message;

@@ -1,6 +1,7 @@
 package com.soliduslabs.controller;
 
 import com.soliduslabs.dao.DynamoDbClient;
+import com.soliduslabs.exceptions.ResourceNotFoundException;
 import com.soliduslabs.model.HashMessage;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/messages")
 public class HashController {
 
+    private final DynamoDbClient dynamoDbClient;
+
     @Autowired
-    private DynamoDbClient dynamoDbClient;
+    public HashController(DynamoDbClient dynamoDbClient) {
+        this.dynamoDbClient = dynamoDbClient;
+    }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody
@@ -39,12 +44,12 @@ public class HashController {
 
     @GetMapping("/{hash}")
     public ResponseEntity getMessageByHashKey(@PathVariable("hash") String hashKey) {
-        HashMessage hashMessage = dynamoDbClient.getStringByHashKey(hashKey);
         try {
+            HashMessage hashMessage = dynamoDbClient.getStringByHashKey(hashKey);
             return new ResponseEntity<>(hashMessage.getMessage(), HttpStatus.OK);
         } catch (Exception e) {
             String responseMessage = "Could not find message for key: " + hashKey + " ,error: " + e;
-            return new ResponseEntity<>(responseMessage, HttpStatus.NOT_FOUND);
+            throw new ResourceNotFoundException(responseMessage);
         }
     }
 }
